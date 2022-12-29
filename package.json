@@ -1,0 +1,30 @@
+{
+  "name": "contact-manager-server",
+  "version": "1.0.0",
+  "description": "10x Main project-Backend",
+  "main": "app.js",
+  "scripts": {
+    "dev": "nodemon app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Aniket-2608/CONTACT-MANAGER-SERVER.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Aniket-2608/CONTACT-MANAGER-SERVER/issues"
+  },
+  "homepage": "https://github.com/Aniket-2608/CONTACT-MANAGER-SERVER#readme",
+  "dependencies": {
+    "bcrypt": "^5.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.0",
+    "mongoose": "^6.8.1",
+    "morgan": "^1.10.0"
+  }
+}

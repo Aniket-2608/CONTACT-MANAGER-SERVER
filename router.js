@@ -1,145 +1,149 @@
-
 const express = require('express')
-const csvtojson = require('csvtojson')
-const multer = require('multer')
-const secret ="abcdefghijk";
-const user = require('./model/user_schema')
-const contacts = require('./model/contacts_schema')
-const bodyParser = require('body-parser');
 const router = require('express').Router();
-const jwt= require('jsonwebtoken');
+const contacts = require('./model/contacts_schema')
+const user = require('./model/user_schema')
+router.use(express.json());
 const cors = require('cors');
 
-router.use(express.json());
 router.use(cors());
+const {validate} = require("./midlewares/middleware")
+const bodyParser = require('body-parser');
+const bcrypt=require('bcrypt');
+const {body,validationResult}=require('express-validator');
+const jwt=require('jsonwebtoken');
+const dotenv=require('dotenv').config();
+router.use(bodyParser.urlencoded({extended:false}));
+router.use(bodyParser.json());
 
-//register user...
-router.post("/signin", async (req, res) => {
-    try {
-        const { email, password } = req.body;
-        let login = await user.find({ email, password });
-        if (!login) {
-            return res.status(409).json({
-                status: "Failure",
-                message: "No Account Exist"
-            })
+router.post('/register',body('email').isEmail(),body('password').isLength(min=6,max=12),async(req,res)=>{
+    const {email,password}=req.body;
+    try{
+        const error=validationResult(req);
+        if(!error.isEmpty()){
+            res.status(500).json({error:error.array()});
         }
-        //if user already there compare the password
-        if (login) {
-            // Create a token after login
-            const token = jwt.sign({
-                exp: Math.floor(Date.now() / 1000) + (60 * 60),
-                data: login._id
-            },secret);
-            return res.json({
-                status: "Success",
-                message: "Login Succesful",
-                token
-            })
-        } else {
-            return res.status(401).json({
-                status: "Failed",
-                message: "Invalid credentials"
-            })
+        const data=await user.findOne({email});
+        if(data){
+            return res.status(400).json({
+                error:`user already exists with ${email} this email, try with another email`
+            });
         }
+        bcrypt.hash(password,12,async(err,hash)=>{
+            if(err){
+                return res.status(400).json({error:err.message});
+            }
+            const User = await user.create({email,password:hash});
+            res.status(200).json({
+                status:"success",
+                message:"Registered Successfully"
+            });
+        });
+    }catch(e){
+        res.status(500).json({
+            status:"failed",
+            error:e.message
+        });
     }
-    catch (e) {
-        res.json({
-            status: "Failed",
-            message: e.message
-        })
-    }
-})
-router.post('/signup', (req, res) => {
-    const {password,email, confirmpassword} = req.body;
-    const signupUser = new user({
-        email: req.body.email,
-        password: req.body.password,
-        confirmpassword: req.body.confirmpassword
-    })
-    if (password !== confirmpassword) {
-        res.send({
-            message: "Password not matching with confirm password"
-        })
-    }
-    
-    signupUser.save()
-        .then((data) => {
-            res.json(data)
-        })
-        .catch((err) => {
-            console.log(err)
+});
+// login
+router.post('/login',async(req,res)=>{
+    const {email,password}=req.body;
+    const userData=await user.findOne({email});
+    if(userData != null){
+        const result = await bcrypt.compare(password,userData.password);
+        if(result){
+            const token =jwt.sign(
+            {
+                exp:Math.floor(Date.now()/10)+60*60,
+                data:userData._id
+            },
+            process.env.SECRET
+            );
+            res.status(200).json({
+                status:"Login Successfully",
+                token: token
+            });
+        }else{
             res.status(400).json({
-                message: err.message
-            })
-        })
-})
-router.get("/register",async(req,res)=>{
+                status:"failed",
+                error:"Invalid email or password"
+            });
+        }
+    }else{
+        res.status(400).json({
+            status:"failed",
+            error:"User Not Found"
+        });
+    }
+});
+router.post('/create',validate,cors(),async(req,res)=>{
     try{
-        const data= await user.find();
+        let users=await contacts.find({userId:req.user});
+        if(users.length>0){
+            users=await contacts.find({userId:req.user}).updateOne(
+                {},
+                {
+                    $push:{
+                        contact:req.body
+                    }
+                }
+            );
+        }else{
+            users=await contacts.create({
+                contact:req.body,
+                userId:req.user
+            });
+        }
+        res.status(200).json({
+            status:"success"
+        });
+        
+    }catch(e){
+        res.status(400).json({
+            status:"failed",
+            error:e.message
+        });
+    }
+});
+// GET USER
+router.get('/user',validate,async(req,res)=>{
+    try{
+        const user=await user.findOne({_id:req.user});
+        res.status(200).json({
+            user
+        });
+    }catch(e){
+        res.status(400).json({
+            error:e.message
+        });
+    }
+});
+// GET ALL
+router.get('/alluser',validate,async(req,res)=>{
+    try{
+        const users=await contacts.find({userId:req.user});
+        res.status(200).json({
+            users
+        });
+    }catch(e){
+        res.status(400).json({
+            error:e.message
+        });
+    }
+});
+// DELETE
+router.delete('/delete/:id',validate,async(req,res)=>{
+    try{
+        let user=await contacts.updateOne({userId:req.user},{$pull:{contact:{_id:req.params.id}}});
         res.status(200).json({
             status:"success",
-            user:data
+            user
         })
     }catch(e){
         res.status(400).json({
             status:"failed",
-            message:e.message
-        })
-    }
-})
-
-const csvFilePath = `${__dirname}/contact.csv`;
-router.post('/add',(req,res)=>{
- //convert csvfile to jsonArray  
-csvtojson()
-.fromFile(csvFilePath)
-.then(csvData =>{
-    console.log(csvData);
-    contacts.insertMany(csvData).then(()=>{
-        console.log("Data Inserted");
-        res.json({
-            status:"Success"
-        })
-        .catch((err)=>{
-            console.log(err);
-            res.json({
-                status:"Failure"
-            })
-        })
-    })
-})
-});
-
-router.get('/add',async(req,res)=>{
-    try{
-        const data = await contacts.find();
-        res.status(200).json({
-            status:"success",
-            data
-        })
-    }catch(e){
-        res.status(400).json({
-            status:"failed",
-            message:e.message
+            error:e.message
         })
     }
 });
-
-router.delete("/add/:Id", async(req,res)=>{
-    try{
-        const data = await contacts.deleteOne({_id : req.params.Id}, req.body);
-        res.json({
-            status:"sucess",
-            data
-        })
-    }
-    catch(e){
-        res.status(404).json({
-            status:"Not Deleted",
-            message:e.message
-        })
-    }
-})
-
 module.exports=router

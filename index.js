@@ -11,7 +11,7 @@ app.use(express.json());
 const logRouter = require("./router")
 const user = require('./model/user_schema')
 
-const port = 3000 || process.env.mongoose_url
+const port = 3000 || process.env.MONGOOSE_URL
 
 mongoose.set('strictQuery', true)
 
@@ -19,7 +19,7 @@ app.use("/", logRouter);
 // app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended:false}));
 
-mongoose.connect(process.env.mongoose_url,{useUnifiedTopology: true,useNewUrlParser: true}).then(()=>{
+mongoose.connect(process.env.MONGOOSE_URL,{useUnifiedTopology: true,useNewUrlParser: true}).then(()=>{
     console.log("DB Connected");
 })
 app.listen(port, ()=>{
